@@ -87,7 +87,6 @@ func main() {
 				file,
 				lno)
 			pos := 0
-			fmt.Println(tokens)
 			for _, token := range tokens {
 				fmt.Fprint(out, line[pos:token.p])
 				if isatty.IsTerminal(os.Stdout.Fd()) {
