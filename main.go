@@ -50,40 +50,71 @@ func main() {
 		defer f.Close()
 		in = f
 	}
+
+	type token struct {
+		p int
+		l int
+	}
 	words := unicodeclass.Split(strings.ToLower(flag.Arg(0)))
 	scan := bufio.NewScanner(in)
 	lno := 0
 	for scan.Scan() {
 		lno++
+		line := scan.Text()
 		linewords := unicodeclass.Split(scan.Text())
-		for i := 0; i < len(linewords); i++ {
-			if i+len(words) >= len(linewords) {
-				break
-			}
-			found := 0
-			for j := 0; j < len(words); j++ {
-				d := lsd.StringDistance(words[j], strings.ToLower(linewords[i+found]))
-				if d > distance {
+		if isatty.IsTerminal(os.Stdout.Fd()) {
+			tokens := []token{}
+			for i := 0; i < len(linewords); i++ {
+				if i+len(words) >= len(linewords) {
 					break
 				}
-				found++
+				js := []int{}
+				for j := 0; j < len(words); j++ {
+					d := lsd.StringDistance(words[j], strings.ToLower(linewords[i]))
+					if d > distance {
+						break
+					}
+					js = append(js, i)
+				}
+				if len(js) == len(words) {
+					tokens = append(tokens, token{
+						p: len(strings.Join(linewords[:js[0]], "")),
+						l: len(linewords[i]),
+					})
+				}
 			}
-			if found == len(words) {
-				if isatty.IsTerminal(os.Stdout.Fd()) {
-					left := strings.Join(linewords[:i], "")
-					middle := strings.Join(linewords[i:i+found], "")
-					right := strings.Join(linewords[i+found:], "")
-					fmt.Fprintf(out, "%s:%d:%s\n",
-						file,
-						lno,
-						left+color.RedString(middle)+right)
-				} else {
+			if len(tokens) > 0 {
+				fmt.Fprintf(out, "%s:%d:",
+					file,
+					lno)
+				pos := 0
+				for _, token := range tokens {
+					fmt.Fprint(out, line[pos:token.p])
+					fmt.Fprint(out, color.RedString(line[token.p:token.p+token.l]))
+					pos = token.p + token.l
+				}
+				fmt.Fprintln(out, line[pos:])
+			}
+		} else {
+			for i := 0; i < len(linewords); i++ {
+				if i+len(words) >= len(linewords) {
+					break
+				}
+				found := 0
+				for j := 0; j < len(words); j++ {
+					d := lsd.StringDistance(words[j], strings.ToLower(linewords[i+found]))
+					if d > distance {
+						break
+					}
+					found++
+				}
+				if found == len(words) {
 					fmt.Fprintf(out, "%s:%d:%s\n",
 						file,
 						lno,
 						strings.Join(linewords, ""))
+					break
 				}
-				break
 			}
 		}
 	}
