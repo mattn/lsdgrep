@@ -62,60 +62,42 @@ func main() {
 		lno++
 		line := scan.Text()
 		linewords := unicodeclass.Split(scan.Text())
-		if isatty.IsTerminal(os.Stdout.Fd()) {
-			tokens := []token{}
-			for i := 0; i < len(linewords); i++ {
-				if i+len(words) >= len(linewords) {
-					break
-				}
-				js := []int{}
-				for j := 0; j < len(words); j++ {
-					d := lsd.StringDistance(words[j], strings.ToLower(linewords[i]))
-					if d > distance {
-						break
-					}
-					js = append(js, i)
-				}
-				if len(js) == len(words) {
-					tokens = append(tokens, token{
-						p: len(strings.Join(linewords[:js[0]], "")),
-						l: len(linewords[i]),
-					})
-				}
+		tokens := []token{}
+		pos := 0
+		for i := 0; i < len(linewords); i++ {
+			if i+len(words) >= len(linewords) {
+				break
 			}
-			if len(tokens) > 0 {
-				fmt.Fprintf(out, "%s:%d:",
-					file,
-					lno)
-				pos := 0
-				for _, token := range tokens {
-					fmt.Fprint(out, line[pos:token.p])
+			found := 0
+			total := distance
+			for j := 0; j < len(words); j++ {
+				total -= lsd.StringDistance(words[j], strings.ToLower(linewords[i+found]))
+				found++
+			}
+			if total >= 0 {
+				tokens = append(tokens, token{
+					p: pos,
+					l: len(strings.Join(linewords[i:i+found], "")),
+				})
+			}
+			pos += len(linewords[i])
+		}
+		if len(tokens) > 0 {
+			fmt.Fprintf(out, "%s:%d:",
+				file,
+				lno)
+			pos := 0
+			fmt.Println(tokens)
+			for _, token := range tokens {
+				fmt.Fprint(out, line[pos:token.p])
+				if isatty.IsTerminal(os.Stdout.Fd()) {
 					fmt.Fprint(out, color.RedString(line[token.p:token.p+token.l]))
-					pos = token.p + token.l
+				} else {
+					fmt.Fprint(out, line[token.p:token.p+token.l])
 				}
-				fmt.Fprintln(out, line[pos:])
+				pos = token.p + token.l
 			}
-		} else {
-			for i := 0; i < len(linewords); i++ {
-				if i+len(words) >= len(linewords) {
-					break
-				}
-				found := 0
-				for j := 0; j < len(words); j++ {
-					d := lsd.StringDistance(words[j], strings.ToLower(linewords[i+found]))
-					if d > distance {
-						break
-					}
-					found++
-				}
-				if found == len(words) {
-					fmt.Fprintf(out, "%s:%d:%s\n",
-						file,
-						lno,
-						strings.Join(linewords, ""))
-					break
-				}
-			}
+			fmt.Fprintln(out, line[pos:])
 		}
 	}
 	if err := scan.Err(); err != nil {
